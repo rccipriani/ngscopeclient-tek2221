@@ -1,0 +1,9 @@
+*.exe
+*.dll
+*.o
+*.so
+__pycache__/
+build/
+
+plugin/build/
+*.dll.bak
