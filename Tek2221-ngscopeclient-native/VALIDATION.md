@@ -1,20 +1,61 @@
-# Native DLL prototype v0.5 acceptance
+# v0.6 validation status
 
-Completed: all seven plugin source files compiled to x86-64 Windows object files
-against a pristine libscopehal header tree (no VISA enum addition), including the
-C entry point, native Win32 controls, driver and transport. Pristine source diffs
-remain empty. GPIB canonicalization regression tests cover collapsed, mixed and
-secondary separators, invalid formats, invalid addresses and injection attempts.
-Script syntax is checked. The shared native decoder/status tests are retained.
+## Reported hardware results
 
-Not yet completed: actual DLL link against the host import libraries, stock
-loader execution, capture/session controls in the plugin, native-window lifecycle,
-tray reopen, clipboard/keyboard behavior, and hardware operations on Tachi.
-C++ ABI compatibility is version/toolchain dependent; this is a prototype.
+On Windows 11 x64 with MSYS2 UCRT64, NI-488.2/NI-VISA (2026 Q3), an NI-compatible
+GPIB-USB-HS clone and a V15 Tektronix 2221:
 
-See plugin/README.md for staged current-build and pristine-host checks. Stock
-waveform channels use the existing GUI; no custom ImGui controls panel is injected.
-Do not claim unmodified-host success from testing only the earlier patched host.
+- Native 64-bit VISA identification and waveform capture succeeded.
+- The DLL loaded, connected, queried controls and captured after matching the
+  host/plugin Release build type. A mismatched Vulkan dispatcher layout initially
+  caused an assertion; the documented v0.6 build defaults address that mismatch.
+- The integrated sidebar was reported working on a fresh pinned upstream
+  checkout with only the generic GUI hook applied.
+- Earlier native-driver testing confirmed CH1/CH2, probe attenuation, paired
+  SAVE guards, Average/16-bit capture, envelope bounds, REF4, scope cursors,
+  setup save/restore, session persistence and several error/recovery paths.
+  Those results are inherited evidence, not a claim that every path was repeated
+  after the DLL/sidebar packaging change.
+
+The separate-window DLL path also achieved working capture during development.
+A complete native-window lifecycle/clipboard/tray regression checklist has not
+been recorded. Native XY has offline decoding coverage but no completed hardware
+acceptance recorded here. Legacy plotting requires suitable external hardware.
+General compatibility with arbitrary upstream builds, other ROMs or the 2221A
+has not been established.
+
+## Offline and compile checks
+
+Decoder/control/status/resource regression tests cover the cases listed below.
+The DLL sidebar, generic hook and changed driver passed Windows cross-compilation
+against the checked-out upstream headers. The GUI-hook installer was applied
+twice to check idempotence. These checks do not replace Windows runtime tests.
+
+## Recommended v0.6 acceptance
+
+1. Confirm the plugin log, create a fresh `tek2221_native`/`visa` connection and
+   capture CH1; add CH2 with the scope on STORE, BOTH + ALT.
+2. In integrated mode, expand Tek controls in Stream Browser and verify no
+   separate window. In DLL-only mode, verify the window and tray reopen behavior.
+3. Read one scope setting, make a supported change, verify readback and CRT.
+   Confirm explicit reads do not overwrite the last completed action result.
+4. Run/Single/Stop, link/unlink channels, change probe attenuation/capture delay,
+   and verify no new captures after all streams are unused.
+5. Exercise Paired with SAVE off (expected rejection), then SAVE on (success).
+   Leave physical controls unchanged during transfer.
+6. Save/reopen a session, remove/re-add the instrument, and close the app while
+   idle and while busy. Confirm no crash or orphan controls window.
+7. Repeat Average/ENV, REF4 and setup actions; use known signals for XY testing.
+8. Test unplug/timeout recovery without interpreting a retained old trace as new
+   data. Fix the connection, then remove/re-add the instrument.
+
+For detailed inherited test history and the longer hardware checklist, see below.
+Older "needs confirmation" notes describe that historical stage, not a reversal
+of the current results above.
+
+---
+
+# Historical validation notes
 
 # v0.4.4 separated status validation
 

@@ -1,44 +1,64 @@
-# Integrated Stream Browser controls (v0.6)
+# Optional Stream Browser GUI hook
 
-This build restores the previous Tek sidebar through a generic Windows GUI hook.
-The host changes are one include, one call in StreamBrowserDialog.cpp, and one
-new header. The host knows nothing about Tek controls or VISA. The DLL supplies
-the panel and driver. A host rebuild is required once; subsequent Tek changes
-can normally rebuild only the DLL, provided the host ABI/dependencies match.
+**The hook is optional.** Without it, Tek2221Native.dll still captures waveforms
+and opens its separate Windows controls window. With it, those controls render
+under the scope in Stream Browser and the separate window is suppressed.
+There is no second GUI DLL.
 
-Close ngscopeclient before replacing binaries. From UCRT64:
+Follow the [main installation guide](../../README.md) for prerequisites and a
+fresh build. To add the sidebar to an existing matching host, close ngscopeclient
+and run from the source package directory in UCRT64:
 
-```sh
-cd /c/Users/rccipriani/Downloads/Tek2221-ngscopeclient-native
-python plugin/Apply-GUI-Hook.py /c/Users/rccipriani/source/scopehal-apps
-cmake --build /c/Users/rccipriani/source/scopehal-apps/build -j4
-bash plugin/Build-Plugin.sh /c/Users/rccipriani/source/scopehal-apps
-bash plugin/Install-Plugin.sh /c/Users/rccipriani/source/scopehal-apps/build/src/ngscopeclient
-bash plugin/Run-Stock.sh /c/Users/rccipriani/source/scopehal-apps/build/src/ngscopeclient
+```bash
+python plugin/Apply-GUI-Hook.py /c/path/to/scopehal-apps
+cmake --build /c/path/to/scopehal-apps/build -j4
+bash plugin/Build-Plugin.sh /c/path/to/scopehal-apps
+bash plugin/Install-Plugin.sh /c/path/to/scopehal-apps/build/src/ngscopeclient
+bash plugin/Run-Stock.sh /c/path/to/scopehal-apps/build/src/ngscopeclient
 ```
 
-Use a fresh `tek2221_native` connection (transport `visa`, resource
-`GPIB0::5::INSTR`). Expand the scope in Stream Browser and expand
-**Tek 2221 controls (v0.4)**. That label identifies the restored panel layout.
-The separate window is suppressed when the host advertises this hook.
-Capture mode, delay, XY, probe factors, colored capture/action/query status,
-acquisition settings, cursor/interface settings and one-shot actions are restored.
-Rendering reads cached state; instrument operations remain asynchronous.
+Use driver `tek2221_native`, transport `visa`, and your GPIB resource. Expand the
+instrument, then **Tek 2221 controls (v0.4)**. That retained layout label also
+appears in v0.6. The sidebar includes capture mode/delay/XY, probe attenuation,
+colored capture/action/query status, digital acquisition/cursor/interface
+settings, and one-shot actions.
 
-The hook uses exported `NgscopeclientRenderStreamPanelV1` functions from loaded
-DLLs, with a versioned signature, current ImGui context and allocator callbacks.
-The DLL compiles the exact host checkout's ImGui sources; it does not create a
-second context or platform renderer. ImGui version and IO/style sizes are
-checked before drawing. This is a prototype C++/ImGui ABI, not a universal
-binary plugin SDK. Build both sides with matching dependencies and build type.
-Release is the plugin default, matching the current host.
+## Host changes
 
-The installer is idempotent and retains StreamBrowserDialog.cpp.before-plugin-hook
-on its first run. To remove the hook while retaining later edits, remove the
-StreamBrowserPluginHook.h include and RenderStreamBrowserPluginPanels call,
-then rebuild the host. Removing the Tek DLL leaves the hook harmless.
-A stock host without the hook still uses the separate native controls window.
+The script changes only:
 
-Acceptance test: expand panel, query one setting, change capture delay/probe
-factor, link CH1/CH2, stop/resume, remove connection and exit. Runtime acceptance
-requires Windows and the scope; local compilation alone does not verify it.
+1. One include in `src/ngscopeclient/StreamBrowserDialog.cpp`.
+2. One call to `RenderStreamBrowserPluginPanels(scope)` in that file.
+3. A new `src/ngscopeclient/StreamBrowserPluginHook.h`.
+
+The hook is generic; the host has no Tek/VISA-specific implementation. The script
+is idempotent and saves a first-run `.cpp.before-plugin-hook` backup. Unknown
+source layouts are rejected rather than guessing where to insert the hook.
+Do not run the old Apply-Driver.py as part of the DLL installation.
+
+## Runtime contract
+
+The host exports `NgscopeclientStreamPanelHookVersion`. On first rendering it
+finds loaded modules exporting `NgscopeclientRenderStreamPanelV1`. The callback
+receives a version, ImGui version/structure sizes, current ImGui context,
+allocator callbacks and the current scope's shared_ptr. Plugins are loaded before
+that renderer list is cached; runtime hot-loading/unloading is not supported.
+
+The DLL compiles the exact host's ImGui sources and checks the version and
+IO/style sizes before rendering. It uses the host's context, not a second frame
+or graphics backend. Both sides still require matching C++/ImGui/toolchain ABIs;
+this prototype is not a general binary compatibility promise. A rejected
+renderer logs an error; it does not automatically reopen the native window when
+the host still advertises the hook.
+
+## Remove the hook
+
+Close the app, remove the StreamBrowserPluginHook.h include and the
+RenderStreamBrowserPluginPanels call from StreamBrowserDialog.cpp, remove the
+new header, and rebuild the host. Preserve unrelated edits; use the backup only
+if it still represents the desired file. Leave Tek2221Native.dll installed to
+use its separate controls window.
+
+Removing only the DLL leaves the generic hook harmless but removes this
+project's Tek driver as well. Refer to the [validation checklist](../VALIDATION.md)
+for capture, controls, session and shutdown checks.
